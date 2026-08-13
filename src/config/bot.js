@@ -1,143 +1,194 @@
+// =========================
+// IMPORTS
+// =========================
 import { Client, GatewayIntentBits, Partials, EmbedBuilder } from "discord.js";
 import fs from "fs";
 import path from "path";
-import botConfig from "./config/botConfig.js"; // ← your big config file
 
-// Load config.json
-const config = JSON.parse(
-    fs.readFileSync(path.join(process.cwd(), "config.json"))
-);
+// =========================
+// LOGGER (placeholder)
+// =========================
+export const logger = {
+  debug: (...args) => console.log("[DEBUG]", ...args),
+  error: (...args) => console.log("[ERROR]", ...args),
+};
 
-const token = config.token;
-const prefix = config.prefix;
-const delay = parseInt(config.delay);
-const log_dms = config.log_dms;
-
-// Bot instance
-const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMembers,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent,
-        GatewayIntentBits.DirectMessages
+// =========================
+// FULL BOT CONFIG (MERGED)
+// =========================
+export const botConfig = {
+  presence: {
+    status: "online",
+    activities: [
+      {
+        name: "Custom Status",
+        state: "stalking",
+        type: 4,
+      },
     ],
-    partials: [Partials.Channel]
-});
+  },
 
-// Ready event
-client.on("ready", () => {
-    console.log(`Logged in as ${client.user.tag}`);
-});
+  commands: {
+    owners: process.env.OWNER_IDS?.split(",").map((id) => id.trim()).filter(Boolean) || [],
+    defaultCooldown: 3,
+    deleteCommands: false,
+    testGuildId: process.env.TEST_GUILD_ID,
+    maintenanceMode: process.env.MAINTENANCE_MODE === "true",
+    prefix: process.env.PREFIX || "!",
+  },
 
-// Message handler
-client.on("messageCreate", async (message) => {
-    if (!message.content.startsWith(prefix)) return;
-    if (message.author.bot) return;
+  applications: {
+    defaultQuestions: [
+      { question: "What is your name?", required: true },
+      { question: "How old are you?", required: true },
+      { question: "Why do you want to join?", required: true },
+    ],
+    statusColors: {
+      pending: "#FFA500",
+      approved: "#00FF00",
+      denied: "#FF0000",
+    },
+    applicationCooldown: 24,
+    deleteDeniedAfter: 7,
+    deleteApprovedAfter: 30,
+    managerRoles: [],
+  },
 
-    const args = message.content.slice(prefix.length).trim().split(/ +/);
-    const cmd = args.shift().toLowerCase();
+  embeds: {
+    colors: {
+      primary: "#336699",
+      secondary: "#2F3136",
+      success: "#57F287",
+      error: "#ED4245",
+      warning: "#FEE75C",
+      info: "#3498DB",
+      light: "#FFFFFF",
+      dark: "#202225",
+      gray: "#99AAB5",
+      blurple: "#5865F2",
+      green: "#57F287",
+      yellow: "#FEE75C",
+      fuchsia: "#EB459E",
+      red: "#ED4245",
+      black: "#000000",
+      giveaway: {
+        active: "#57F287",
+        ended: "#ED4245",
+      },
+      ticket: {
+        open: "#57F287",
+        claimed: "#FAA61A",
+        closed: "#ED4245",
+        pending: "#99AAB5",
+      },
+      economy: "#F1C40F",
+      birthday: "#E91E63",
+      moderation: "#9B59B6",
+      priority: {
+        none: "#95A5A6",
+        low: "#3498db",
+        medium: "#2ecc71",
+        high: "#f1c40f",
+        urgent: "#e74c3c",
+      },
+    },
+    footer: {
+      text: "Titan Bot",
+      icon: null,
+    },
+    thumbnail: null,
+    author: {
+      name: null,
+      icon: null,
+      url: null,
+    },
+  },
 
-    // SEND / DMALL
-    if (cmd === "send" || cmd === "dmall") {
-        const text = args.join(" ").trim();
-        if (!text) return message.reply("Please provide a message.");
+  economy: {
+    currency: {
+      name: "coins",
+      namePlural: "coins",
+      symbol: "$",
+    },
+    startingBalance: 0,
+    baseBankCapacity: 100000,
+    dailyAmount: 100,
+    workMin: 10,
+    workMax: 100,
+    begMin: 5,
+    begMax: 50,
+    cooldowns: {
+      daily: 86400000,
+      work: 3600000,
+      crime: 7200000,
+      rob: 14400000,
+    },
+    robSuccessRate: 0.4,
+    robFailJailTime: 3600000,
+  },
 
-        const members = await message.guild.members.fetch();
-        let count = members.size;
+  shop: {},
 
-        await message.reply(`${count} members detected, this might take a while`);
+  tickets: {
+    defaultCategory: null,
+    supportRoles: [],
+    priorities: {
+      none: { emoji: "⚪", color: "#95A5A6", label: "None" },
+      low: { emoji: "🟢", color: "#2ECC71", label: "Low" },
+      medium: { emoji: "🟡", color: "#F1C40F", label: "Medium" },
+      high: { emoji: "🔴", color: "#E74C3C", label: "High" },
+      urgent: { emoji: "🚨", color: "#E91E63", label: "Urgent" },
+    },
+    defaultPriority: "none",
+    archiveCategory: null,
+    logChannel: null,
+  },
 
-        for (const [id, member] of members) {
-            if (member.user.id === client.user.id || member.user.bot) {
-                if (log_dms.toLowerCase() === "on") {
-                    await message.channel.send(`❌ Skipped ${member.user.username}`);
-                }
-                count--;
-                continue;
-            }
+  giveaways: {
+    defaultDuration: 86400000,
+    minimumWinners: 1,
+    maximumWinners: 10,
+    minimumDuration: 300000,
+    maximumDuration: 2592000000,
+    allowedRoles: [],
+    bypassRoles: [],
+  },
 
-            try {
-                await member.send(text);
-                if (log_dms.toLowerCase() === "on") {
-                    await message.channel.send(`✔️ Sent message to ${member.user.username}`);
-                }
-            } catch {
-                if (log_dms.toLowerCase() === "on") {
-                    await message.channel.send(`✔️ Could not DM ${member.user.username}`);
-                }
-                count--;
-            }
+  birthday: {
+    defaultRole: null,
+    announcementChannel: null,
+    timezone: "UTC",
+  },
 
-            await new Promise(res => setTimeout(res, delay));
-        }
+  verification: {
+    defaultMessage: "Click the button below to verify yourself and gain access to the server!",
+    defaultButtonText: "Verify",
+    autoVerify: {
+      defaultCriteria: "none",
+      defaultAccountAgeDays: 7,
+      serverSizeThreshold: 1000,
+      minAccountAge: 1,
+      maxAccountAge: 365,
+      sendDMNotification: true,
+      criteria: {
+        account_age: "Account must be older than specified days",
+        server_size: "All users if server has less than 1000 members",
+        none: "All users immediately",
+      },
+    },
+    verificationCooldown: 5000,
+    maxVerificationAttempts: 3,
+    attemptWindow: 60000,
+    maxCooldownEntries: 10000,
+    maxAttemptEntries: 10000,
+    cooldownCleanupInterval: 300000,
+    maxAuditMetadataBytes: 4096,
+    maxInMemoryAuditEntries: 1000,
+    logAllVerifications: true,
+    keepAuditTrail: true,
+  },
 
-        await message.reply(`✔️ DM sent to ${count} members`);
-    }
-
-    // DM SPECIFIC USER
-    if (cmd === "dm" || cmd === "idm") {
-        const user = message.mentions.users.first();
-        const text = args.slice(1).join(" ");
-
-        if (!user || !text) {
-            return message.reply(`Usage: \`${prefix}dm <user> <message>\``);
-        }
-
-        try {
-            await user.send(text.replace(`<@${user.id}>`, ""));
-            await message.reply(`Message sent to ${user.tag} ✔️`);
-        } catch {
-            await message.reply(`Could not send message to ${user.tag} ❌`);
-        }
-    }
-
-    // LATENCY / PING
-    if (cmd === "latency" || cmd === "ping" || cmd === "ltc") {
-        const ms = Math.round(client.ws.ping);
-        let color = 0x000000;
-
-        if (ms <= 50) color = 0x000000;
-        else if (ms <= 100) color = 0x00FF00;
-        else if (ms <= 300) color = 0x00FFFF;
-        else color = 0xFF0000;
-
-        const embed = new EmbedBuilder()
-            .setTitle(cmd === "ping" ? "Ping" : "Latency")
-            .setDescription(`Latency: ${ms}ms`)
-            .setColor(color);
-
-        await message.reply({ embeds: [embed] });
-    }
-
-    // HELP
-    if (cmd === "help" || cmd === "helpme" || cmd === "how") {
-        const embed = new EmbedBuilder()
-            .setTitle(client.user.username)
-            .addFields(
-                {
-                    name: "Send",
-                    value: `DMs all members\nUsage: \`${prefix}send <message>\``,
-                },
-                {
-                    name: "DM",
-                    value: `DMs a specific member\nUsage: \`${prefix}dm <user> <message>\``,
-                },
-                {
-                    name: "Latency",
-                    value: `Shows bot latency\nUsage: \`${prefix}latency\``,
-                },
-                {
-                    name: "Help",
-                    value: `Shows all commands\nUsage: \`${prefix}help\``,
-                }
-            )
-            .setFooter({ text: "Made by INVADER <3" })
-            .setColor(0x00FFFF);
-
-        await message.reply({ embeds: [embed] });
-    }
-});
-
+  welcome: {
+    defaultWelcome
 // Login
 client.login(token);
